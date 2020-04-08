@@ -1,0 +1,79 @@
+#
+# set +o errexit -o noglob -o nounset is assumed.
+#
+
+exp_rtl_fetch_url_git() {
+	local _tgtdir="${1}" _subdir="${2}" _url="${3}" _branch="${4}"	\
+		_oldpwd="";
+	(set -o errexit -o noglob -o nounset;
+	rtl_flock_acquire 4 || exit "${?}";
+	trap "rm -f \"${BUILD_DLCACHEDIR}/${_subdir%%[/]}.fetching\"" EXIT;
+	if [ -e "${BUILD_DLCACHEDIR}/${_subdir}" ]; then
+		(rtl_fileop cd "${BUILD_DLCACHEDIR}/${_subdir}" &&\
+			git pull ${DEFAULT_GIT_ARGS} origin "${_branch:-main}");
+		(rtl_fileop cd "${BUILD_DLCACHEDIR}/${_subdir}" &&\
+			git submodule update);
+	else
+		git clone ${DEFAULT_GIT_ARGS} "${_url}" "${BUILD_DLCACHEDIR}/${_subdir}";
+		if [ -n "${_branch}" ]; then
+			(rtl_fileop cd "${BUILD_DLCACHEDIR}/${_subdir}" &&\
+				git checkout "${_branch}");
+		fi;
+		(rtl_fileop cd "${BUILD_DLCACHEDIR}/${_subdir}" &&\
+			git submodule update --init);
+	fi;
+	_oldpwd="${PWD}"; rtl_fileop cd "${PKG_BASE_DIR}";
+	rtl_fileop rm "${_tgtdir}/${_subdir}";
+	rtl_fileop cp "${BUILD_DLCACHEDIR}/${_subdir}" "${_tgtdir}";
+	rtl_fileop cd "${_oldpwd}";) 4<>"${BUILD_DLCACHEDIR}/${_subdir%%[/]}.fetching";
+	if [ "${?}" -eq 0 ]; then
+		cd "$(pwd)";
+	else
+		return 1;
+	fi;
+};
+
+rtl_fetch_urls_git() {
+	local _tgtdir="" _url_spec="" _subdir="" _url="" _git_branch="";
+	_tgtdir="${1}"; shift;
+	if [ "${ARG_FETCH_FORCE}" = "offline" ]; then
+		return 0;
+	fi;
+	for _url_spec in "${@}"; do
+		_subdir="${_url_spec%=*}";
+		_url="${_url_spec#*=}";
+		_url="${_url%@*}";
+		if [ "${_url_spec#*@}" != "${_url_spec}" ]; then
+			_git_branch=${_url_spec#*@};
+		fi;
+		exp_rtl_fetch_url_git "${_tgtdir}" "${_subdir}"	\
+			"${_url}" "${_git_branch}";
+	done;
+};
+
+# N.B.	URLs ($1) may contain `?' or '&' characters.
+rtl_fetch_url_wget() {
+	local _url="${1}" _sha256sum_src="${2}" _target_fname="${3}" _sha256sum_dst="";
+	if [ "${ARG_FETCH_FORCE}" = "offline" ]; then
+		return 0;
+	elif [ -z "${_target_fname}" ]; then
+		_target_fname="$(rtl_basename "${_url}")";
+	fi;
+	_url_dst="${BUILD_DLCACHEDIR}/${_target_fname}";
+	(set -o errexit -o noglob -o nounset;
+	rtl_flock_acquire 4 || exit "${?}";
+	trap "_rc=\"\${?}\" ;rm -f \"${_url_dst}.fetching\"; exit \"\${_rc}\";" EXIT;
+	if [ ! -e "${_url_dst}.fetched" ]; then
+		wget ${DEFAULT_WGET_ARGS} -O "${_url_dst}" "${_url}";
+		if [ -n "${_sha256sum_src}" ]; then
+			set -- $(sha256sum "${_url_dst}");
+			if [ "${_sha256sum_dst:=${1}}" != "${_sha256sum_src}" ]; then
+				rtl_log_msg fatalexit "Error: hash mismatch for URL \`%s' (downloaded file: %s, from build variables: %s.)"\
+						"${_url}" "${_sha256sum_dst}" "${_sha256sum_src}";
+			fi;
+		fi;
+		rtl_fileop touch "${_url_dst}.fetched";
+	fi;) 4<>"${_url_dst}.fetching";
+};
+
+# vim:filetype=sh

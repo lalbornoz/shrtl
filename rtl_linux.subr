@@ -1,0 +1,45 @@
+#
+# set +o errexit -o noglob -o nounset is assumed.
+#
+
+rtl_cgroup_create_subdir() {
+	local _vflag="${1}" _cgroup="${2}";
+	if [ "${_vflag:-0}" -eq 1 ]; then
+		rtl_log_verbose "Creating /sys/fs/cgroup/${_cgroup}.";
+	fi;
+	if ! [ -d "/sys/fs/cgroup/${_cgroup}" ]\
+	&& ! mkdir "/sys/fs/cgroup/${_cgroup}" 2>/dev/null; then
+		rtl_log_error "failed to create /sys/fs/cgroup/${_cgroup}."; return 1;
+	else
+		return 0;
+	fi;
+};
+
+rtl_cgroup_write_file() {
+	local _vflag="${1}" _cgroup="${2}" _fname="${3}" _vname="${4}";
+	if [ "${_vflag:-0}" -eq 1 ]; then
+		rtl_log_verbose "Writing \`%s' to /sys/fs/cgroup/${_cgroup}/${_fname}." "${_vname}";
+	fi;
+	if ! printf "${_vname}\n" 2>/dev/null >| "/sys/fs/cgroup/${_cgroup}/${_fname}"; then
+		rtl_log_warning "failed to write \`%s' to /sys/fs/cgroup/${_cgroup}/${_fname}." "${_vname}"; return 1;
+	else
+		return 0;
+	fi;
+};
+
+rtl_get_users() {
+	local _gname="${1}" _group_entry="" _group_id=0 _users="" _users_passwd="";
+	if ! _group_entry="$(getent group "${_gname}" 2>/dev/null)"; then
+		rtl_log_error "invalid or unknown group \`%s'." "${_gname}"; return 1;
+	elif ! _group_id="$(printf "%s\n" "${_group_entry}" | awk -F: '{print $3}' 2>/dev/null)"; then
+		rtl_log_error "failed to obtain GID from group \`%s'." "${_gname}"; return 2;
+	elif ! _users="$(printf "%s\n" "${_group_entry}" | awk -F: '{print $4}' | sed 's/,/\n/g' 2>/dev/null)"; then
+		rtl_log_error "failed to obtain secondary group users from group \`%s'." "${_gname}"; return 3;
+	elif ! _users_passwd="$(awk -F: '$4 == '"${_group_id}"' {print $1}' /etc/passwd | paste -s -d" " 2>/dev/null)"; then
+		rtl_log_error "failed to obtain primary group users from group \`%s'." "${_gname}"; return 4;
+	else	_users="$(rtl_uniq $(rtl_lconcat "${_users}" "${_users_passwd}"))";
+		echo "${_users}"; return 0;
+	fi;
+};
+
+# vim:filetype=sh
