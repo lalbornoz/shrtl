@@ -1,4 +1,5 @@
 #
+# Copyright (c) 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023 Lucía Andrea Illanes Albornoz <lucia@luciaillanes.de>
 # set +o errexit -o noglob -o nounset is assumed.
 #
 
@@ -85,7 +86,7 @@ rtl_fetch_mirror_urls_git() {
 		_rfmug_subdir="${_rfmug_url_spec%=*}"; _rfmug_subdir="${_rfmug_subdir##*/}"; _rfmug_url="${_rfmug_url_spec#*=}"; _rfmug_url="${_rfmug_url%@*}";
 		_rfmug_repo_dname="${_rfmug_subdir}"; [ "${_rfmug_repo_dname%.git}" = "${_rfmug_repo_dname}" ] && _rfmug_repo_dname="${_rfmug_repo_dname}.git";
 
-		_rfmug_dname="${_rfmug_tgdir}"; rtl_dirname \$_rfmug_dname;
+		_rfmug_dname="${_rfmug_tgtdir}"; rtl_dirname \$_rfmug_dname;
 		if ! [ -e "${_rfmug_dname}" ]; then
 			rtl_fileop mkdir "${_rfmug_dname}";
 		fi;
