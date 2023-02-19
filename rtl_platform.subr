@@ -1,4 +1,5 @@
 #
+# Copyright (c) 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023 Lucía Andrea Illanes Albornoz <lucia@luciaillanes.de>
 # set +o errexit -o noglob -o nounset is assumed.
 #
 
@@ -142,6 +143,22 @@ rtl_run_cmd_unsplit() {
 	done;
 	IFS=:; ${_rrcu_cmd} ${_rrcu_cmdline}; _rrcu_rc=$?;
 	return ${_rrcu_rc};
+};
+
+rtl_set_var_from_cmdline() {
+	local	_rsvfc_rstatus="${1#\$}" _rsvfc_arg="${2}"	\
+		_rsvfc_rc=0 _rsvfc_vname="" _rsvfc_vval="";
+
+	_rsvfc_vname="${_rsvfc_arg%%=*}";
+	_rsvfc_vval="${_rsvfc_arg#*=}";
+
+	if [ "${_rsvfc_vval:+1}" != 1 ]; then
+		_rsvfc_rc=1;
+		rtl_setrstatus "${_rsvfc_rstatus}" 'empty value specified for \${'"${_rsvfc_vname}"'}.';
+	else
+		rtl_set_var_unsafe "${_rsvfc_vname}" "${_rsvfc_vval}";
+	fi;
+	return "${_rsvfc_rc}";
 };
 
 rtl_set_vars() {
